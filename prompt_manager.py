@@ -111,6 +111,10 @@ class PromptManager:
                 print(f"⚠️ Prompt key not found: {prompt_key}")
                 return ""
         
+        # If it's an array, join it into a string (for multi-line prompts)
+        if isinstance(value, list):
+            value = ''.join(value)
+        
         # If it's a template, format it
         if isinstance(value, str) and kwargs:
             try:
