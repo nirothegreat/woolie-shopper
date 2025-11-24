@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Family Preferences - Woolies Shopper{% endblock %}
+
+{% block content %}
+<h1>👨‍👩‍👧‍👦 Family Preferences</h1>
+<p class="text-muted">Manage food preferences for each family member</p>
+
+{% for member in family_members %}
+<div class="card mt-3">
+    <h2>{{ member.display_name }}</h2>
+    
+    <form method="post" action="{{ url_for('update_family_preferences', member_id=member.id) }}">
+        <div class="form-group">
+            <label>Favorite Foods:</label>
+            <textarea name="preferences" rows="8" placeholder="Enter one preference per line...">{% for pref in member.preferences %}{{ pref }}
+{% endfor %}</textarea>
+            <small class="text-muted">Enter one food preference per line (e.g., Pizza, Pasta, Chicken nuggets)</small>
+        </div>
+        
+        <button type="submit" class="btn">💾 Save Preferences</button>
+    </form>
+    
+    <div class="mt-3">
+        <h3>Recipe Preferences</h3>
+        <p class="text-muted">Which recipes does {{ member.display_name }} like?</p>
+        
+        <div style="max-height: 400px; overflow-y: auto;">
+            {% set meal_types = {'Breakfast': '🌅', 'Lunch': '🥪', 'Dinner': '🍽️', 'Snack': '🍎'} %}
+            {% for meal_type, emoji in meal_types.items() %}
+                {% set type_recipes = recipes|selectattr('meal_type', 'equalto', meal_type)|list %}
+                {% if type_recipes %}
+                <div class="mb-2">
+                    <strong>{{ emoji }} {{ meal_type }}</strong>
+                    <div style="margin-left: 1rem;">
+                        {% for recipe in type_recipes %}
+                        <div>
+                            <input type="checkbox" 
+                                   id="recipe_{{ member.id }}_{{ recipe.id }}" 
+                                   data-member="{{ member.id }}" 
+                                   data-recipe="{{ recipe.id }}">
+                            <label for="recipe_{{ member.id }}_{{ recipe.id }}">{{ recipe.name }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<div class="card">
+    <h2>📋 Summary</h2>
+    {% for member in family_members %}
+    <div class="mb-2">
+        <h3>{{ member.display_name }}</h3>
+        {% if member.preferences %}
+        <ul>
+            {% for pref in member.preferences %}
+            <li>{{ pref }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No preferences set yet</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

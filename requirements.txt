@@ -1,0 +1,14 @@
+flask==3.1.0
+python-dotenv==1.0.0
+langchain==0.3.13
+langchain-core==0.3.28
+langchain-anthropic==0.3.0
+langchain-community==0.3.13
+mcp==1.21.2
+psycopg2-binary==2.9.10
+gunicorn==23.0.0
+requests==2.32.3
+google-cloud-firestore==2.20.0
+firebase-admin==6.7.0
+beautifulsoup4==4.14.2
+lxml==5.3.0

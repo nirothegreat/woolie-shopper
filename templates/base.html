@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Woolworths Recipe Shopper{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1>🛒 Woolies Shopper</h1>
+            <ul>
+                <li><a href="{{ url_for('index') }}">🏠 Home</a></li>
+                <li><a href="{{ url_for('recipes') }}">📖 Recipes</a></li>
+                <li><a href="{{ url_for('add_recipe') }}">➕ Add Recipe</a></li>
+                <li><a href="{{ url_for('family_preferences') }}">👨‍👩‍👧‍👦 Family</a></li>
+                <li><a href="{{ url_for('meal_plan') }}">📅 Meal Plan</a></li>
+                <li><a href="{{ url_for('shopping_list') }}">🛒 Shopping List</a></li>
+                <li><a href="{{ url_for('preferences') }}">⚙️ Settings</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

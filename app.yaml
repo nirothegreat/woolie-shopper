@@ -1,0 +1,18 @@
+# Google App Engine configuration (alternative to Cloud Run)
+# For Cloud Run, this file is NOT needed
+
+runtime: python311
+
+instance_class: F1
+
+automatic_scaling:
+  target_cpu_utilization: 0.65
+  min_instances: 0
+  max_instances: 3
+
+env_variables:
+  FLASK_ENV: "production"
+  PYTHON_VERSION: "3.11"
+  # ANTHROPIC_API_KEY: "set-via-gcloud-command-or-console"
+
+entrypoint: gunicorn --bind :$PORT --workers 2 --threads 4 --timeout 60 flask_app:app

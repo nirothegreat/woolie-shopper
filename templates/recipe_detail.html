@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe.get('name', 'Recipe') }} - Woolies Shopper{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('recipes') }}" class="btn btn-secondary btn-sm mb-2">← Back to Recipes</a>
+
+<div class="card">
+    <h1>{{ recipe['name'] }}</h1>
+    <p class="text-muted">{{ recipe.get('description', '') }}</p>
+    
+    <div class="mt-2">
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <span id="mealTypeDisplay" class="recipe-badge" style="cursor: pointer;" onclick="editMealType()">
+                {{ recipe.get('meal_type', 'Dinner') }}
+            </span>
+            <select id="mealTypeSelect" style="display: none; padding: 0.3rem; border: 1px solid #ddd; border-radius: 4px;" onchange="saveMealType()">
+                <option value="Breakfast" {% if recipe.get('meal_type') == 'Breakfast' %}selected{% endif %}>Breakfast</option>
+                <option value="Lunch" {% if recipe.get('meal_type') == 'Lunch' %}selected{% endif %}>Lunch</option>
+                <option value="Dinner" {% if recipe.get('meal_type') == 'Dinner' %}selected{% endif %}>Dinner</option>
+                <option value="Snack" {% if recipe.get('meal_type') == 'Snack' %}selected{% endif %}>Snack</option>
+                <option value="Dessert" {% if recipe.get('meal_type') == 'Dessert' %}selected{% endif %}>Dessert</option>
+            </select>
+            <button id="editMealTypeBtn" onclick="editMealType()" style="background: none; border: none; cursor: pointer; color: #666; font-size: 0.9rem;" title="Edit meal type">✏️</button>
+        </div>
+        {% if recipe.get('difficulty') %}<span class="recipe-badge">{{ recipe['difficulty'] }}</span>{% endif %}
+        {% if recipe.get('cuisine') %}<span class="recipe-badge">{{ recipe['cuisine'] }}</span>{% endif %}
+        {% if recipe.get('servings') %}<span class="recipe-badge">🍽️ Serves {{ recipe['servings'] }}</span>{% endif %}
+        {% if recipe.get('total_time') %}<span class="recipe-badge">⏱️ {{ recipe['total_time'] }}</span>{% endif %}
+    </div>
+    
+    <!-- Tags Section -->
+    <div class="mt-3">
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">🏷️ Tags</h3>
+        <div id="tagsContainer" class="flex gap-1" style="flex-wrap: wrap; margin-bottom: 0.5rem;">
+            {% for tag in recipe.get('tags', []) %}
+            <span class="recipe-badge" style="background: #e3f2fd; color: #1976d2; display: inline-flex; align-items: center; gap: 0.3rem;">
+                {{ tag }}
+                <button onclick="removeTag('{{ tag }}')" style="background: none; border: none; color: #1976d2; cursor: pointer; padding: 0; margin: 0; font-size: 1.2rem; line-height: 1;">&times;</button>
+            </span>
+            {% else %}
+            <span class="text-muted" style="font-size: 0.9rem;">No tags yet</span>
+            {% endfor %}
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="newTagInput" placeholder="Add a tag (e.g., vegan, quick)" style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <button onclick="addTag()" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Add Tag</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const recipeId = '{{ recipe["id"] }}';
+
+function editMealType() {
+    const display = document.getElementById('mealTypeDisplay');
+    const select = document.getElementById('mealTypeSelect');
+    const btn = document.getElementById('editMealTypeBtn');
+    
+    display.style.display = 'none';
+    select.style.display = 'inline-block';
+    btn.style.display = 'none';
+}
+
+async function saveMealType() {
+    const select = document.getElementById('mealTypeSelect');
+    const newMealType = select.value;
+    
+    try {
+        const response = await fetch(`/recipes/${recipeId}/meal-type`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ meal_type: newMealType })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update display and hide select
+            document.getElementById('mealTypeDisplay').textContent = newMealType;
+            document.getElementById('mealTypeDisplay').style.display = 'inline-block';
+            select.style.display = 'none';
+            document.getElementById('editMealTypeBtn').style.display = 'inline-block';
+        } else {
+            alert('Error updating meal type: ' + data.error);
+            // Revert
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to update meal type');
+        location.reload();
+    }
+}
+
+async function addTag() {
+    const input = document.getElementById('newTagInput');
+    const tag = input.value.trim();
+    
+    if (!tag) {
+        alert('Please enter a tag');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/recipes/${recipeId}/tags`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tag: tag })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Reload page to show updated tags
+            location.reload();
+        } else {
+            alert('Error adding tag: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to add tag');
+    }
+}
+
+async function removeTag(tag) {
+    if (!confirm(`Remove tag "${tag}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/recipes/${recipeId}/tags/${encodeURIComponent(tag)}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Reload page to show updated tags
+            location.reload();
+        } else {
+            alert('Error removing tag: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to remove tag');
+    }
+}
+
+// Allow pressing Enter to add tag
+document.getElementById('newTagInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        addTag();
+    }
+});
+</script>
+
+<div class="card">
+    <h2>📝 Ingredients</h2>
+    <ul>
+    {% for ingredient in recipe.get('ingredients', []) %}
+        <li>
+            {% if ingredient.get('quantity') %}{{ ingredient['quantity'] }}{% endif %}
+            {% if ingredient.get('unit') %}{{ ingredient['unit'] }}{% endif %}
+            {{ ingredient.get('name') or ingredient.get('ingredient_name', '') }}
+            {% if ingredient.get('notes') %}<em class="text-muted">({{ ingredient['notes'] }})</em>{% endif %}
+        </li>
+    {% else %}
+        <li>No ingredients listed</li>
+    {% endfor %}
+    </ul>
+</div>
+
+<div class="card">
+    <h2>👨‍🍳 Method</h2>
+    {% if recipe.get('method') %}
+        <div style="white-space: pre-wrap;">{{ recipe['method'] }}</div>
+    {% else %}
+        <p>No method provided</p>
+    {% endif %}
+</div>
+
+{% if recipe.get('tips') %}
+<div class="card">
+    <h2>💡 Tips</h2>
+    <div style="white-space: pre-wrap;">{{ recipe['tips'] }}</div>
+</div>
+{% endif %}
+
+{% if recipe.get('calories') or recipe.get('protein') or recipe.get('carbs') or recipe.get('fats') %}
+<div class="card">
+    <h2>📊 Nutrition</h2>
+    <div class="flex gap-1">
+        {% if recipe.get('calories') %}<span class="recipe-badge">{{ recipe['calories'] }} cal</span>{% endif %}
+        {% if recipe.get('protein') %}<span class="recipe-badge">Protein: {{ recipe['protein'] }}g</span>{% endif %}
+        {% if recipe.get('carbs') %}<span class="recipe-badge">Carbs: {{ recipe['carbs'] }}g</span>{% endif %}
+        {% if recipe.get('fats') %}<span class="recipe-badge">Fats: {{ recipe['fats'] }}g</span>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if recipe.get('source_url') %}
+<div class="card">
+    <p><strong>Source:</strong> <a href="{{ recipe['source_url'] }}" target="_blank">{{ recipe['source_url'] }}</a></p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Woolies Shopper{% endblock %}
+
+{% block content %}
+<h1>Welcome to Woolies Shopper</h1>
+<p class="text-muted">Your automated grocery shopping assistant</p>
+
+<div class="stats-grid mt-3">
+    <div class="stat-card">
+        <h3>{{ total_recipes }}</h3>
+        <p>Total Recipes</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ breakfast_count }}</h3>
+        <p>Breakfast Recipes</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ dinner_count }}</h3>
+        <p>Dinner Recipes</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ family_count }}</h3>
+        <p>Family Members</p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>🚀 Quick Actions</h2>
+    <div class="flex gap-1 mt-2">
+        <a href="{{ url_for('add_recipe') }}" class="btn">➕ Add New Recipe</a>
+        <a href="{{ url_for('meal_plan') }}" class="btn btn-secondary">📅 Plan This Week</a>
+        <a href="{{ url_for('shopping_list') }}" class="btn btn-secondary">🛒 Generate Shopping List</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📊 How It Works</h2>
+    <ol>
+        <li><strong>Add Recipes:</strong> Import from URLs or enter manually</li>
+        <li><strong>Set Family Preferences:</strong> Track what each family member likes</li>
+        <li><strong>Plan Your Week:</strong> Assign recipes to each day</li>
+        <li><strong>Manage Staples:</strong> Mark what you have in stock</li>
+        <li><strong>Generate Shopping List:</strong> Get a complete list with organic preferences applied</li>
+        <li><strong>Shop at Woolworths:</strong> Export your list and order online</li>
+    </ol>
+</div>
+
+<div class="card">
+    <h2>👨‍👩‍👧‍👦 Family Members</h2>
+    <p><strong>Ehren:</strong> Hotdogs, Pizza, Ramen noodles, Kid-friendly foods</p>
+    <p><strong>Maya:</strong> Pasta, Rice, Italian dishes</p>
+    <p><strong>Daddy:</strong> Steak, Chicken, Protein-rich dishes</p>
+    <p><strong>Mommy:</strong> Salads, Soups, Healthy options</p>
+    <a href="{{ url_for('family_preferences') }}" class="btn btn-sm mt-2">Manage Preferences</a>
+</div>
+{% endblock %}

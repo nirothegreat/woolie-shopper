@@ -1,0 +1,600 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping List - Woolies Shopper{% endblock %}
+
+{% block content %}
+<div class="flex justify-between align-center">
+    <div>
+        <h1>🛒 Shopping List</h1>
+        {% if ai_optimized %}
+        <p class="text-muted">✨ Automatically optimized with AI for the best shopping experience</p>
+        {% else %}
+        <p class="text-muted">Your complete grocery list with preferences applied</p>
+        {% endif %}
+    </div>
+    <div class="flex gap-1">
+        {% if ai_optimized %}
+        <span class="badge" style="background: #2c7a4d; color: white; padding: 0.5rem 1rem;">🤖 Auto-Optimized</span>
+        <a href="{{ url_for('shopping_list', ai='false') }}" class="btn btn-secondary">Standard View</a>
+        {% else %}
+        <span class="badge" style="background: #6c757d; color: white; padding: 0.5rem 1rem;">📋 Standard View</span>
+        <a href="{{ url_for('shopping_list') }}" class="btn">🤖 AI Optimize</a>
+        {% endif %}
+        <a href="{{ url_for('meal_plan') }}" class="btn btn-secondary">← Back to Meal Plan</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📊 Shopping List Summary</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>{{ categories|length }}</h3>
+            <p>Categories</p>
+        </div>
+        <div class="stat-card">
+            <h3>{% set total = namespace(count=0) %}{% for items in categories.values() %}{% set total.count = total.count + items|length %}{% endfor %}{{ total.count }}</h3>
+            <p>Total Items</p>
+        </div>
+        <div class="stat-card">
+            <h3>×{{ servings_multiplier }}</h3>
+            <p>Servings Multiplier</p>
+        </div>
+    </div>
+    
+    <!-- Match Results Display -->
+    <div id="matchResults" style="display: none; margin-top: 1rem;">
+        <div class="alert alert-success">
+            <strong id="matchSummary"></strong>
+        </div>
+        
+        <!-- Matched Products List (Copyable) -->
+        <div id="matchedProductsList" class="card mt-3" style="display: none;">
+            <h3>📋 Matched Products (Copy This List)</h3>
+            <div style="background: #f5f5f5; padding: 1rem; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 500px; overflow-y: auto;" id="productListText"></div>
+            <button onclick="copyProductList()" class="btn btn-secondary mt-2">📋 Copy to Clipboard</button>
+        </div>
+    </div>
+</div>
+
+{% if shopping_tips %}
+<div class="card">
+    <h2>💡 AI Shopping Tips</h2>
+    <ul style="margin: 0;">
+        {% for tip in shopping_tips %}
+        <li>{{ tip }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if cost_saving %}
+<div class="card">
+    <h2>💰 Cost-Saving Suggestions</h2>
+    <ul style="margin: 0;">
+        {% for suggestion in cost_saving %}
+        <li>{{ suggestion }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% for category, items in categories|dictsort %}
+<div class="shopping-category">
+    <h3>{{ category }}</h3>
+    {% for item in items %}
+    {% set item_id = (item.item if ai_optimized else (item.name or item.ingredient_name))|replace(' ', '_')|lower %}
+    <div class="shopping-item" data-item-id="{{ item_id }}" style="display: grid; grid-template-columns: auto 1fr auto auto; gap: 1rem; align-items: center; padding: 0.75rem; border-bottom: 1px solid #e0e0e0;">
+        <div>
+            <input type="checkbox" 
+                   id="have_{{ loop.index0 }}_{{ category|replace(' ', '_') }}" 
+                   class="item-checkbox"
+                   onchange="toggleItemHave('{{ item_id }}', this.checked)"
+                   style="width: 20px; height: 20px; cursor: pointer;">
+        </div>
+        <div>
+            <label for="have_{{ loop.index0 }}_{{ category|replace(' ', '_') }}" style="cursor: pointer;">
+                <span class="item-name">
+                    {% if ai_optimized %}
+                        {{ item.item }}
+                    {% else %}
+                        {% if 'category_staple' in item %}🏪 {% endif %}
+                        {{ item.name or item.ingredient_name }}
+                    {% endif %}
+                </span>
+            </label>
+            
+            {% if ai_optimized and item.notes %}
+            <br><small style="color: #2c7a4d;">✨ {{ item.notes }}</small>
+            {% endif %}
+            {% if not ai_optimized %}
+                {% if 'original_name' in item %}
+                <br><small class="text-muted">Substituted from: {{ item.original_name }}</small>
+                {% endif %}
+                {% for note in item.notes|default([]) %}
+                <br><small class="text-muted">{{ note }}</small>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <div class="item-quantity">
+            {% if ai_optimized %}
+                {{ item.quantity }}
+            {% else %}
+                {% if item.quantity %}{{ item.quantity }}{% endif %}
+                {% if item.unit %}{{ item.unit }}{% endif %}
+            {% endif %}
+        </div>
+        <div>
+            <button class="btn btn-sm btn-danger" onclick="removeItem('{{ item_id }}')" style="font-size: 0.8rem;">✕</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+<div class="card" style="background: #f8f9fa; border: 2px dashed #6c757d;">
+    <h3>📝 Shopping Summary</h3>
+    <p id="shoppingSummary">Check off items you already have. Only unchecked items will appear in your final list.</p>
+</div>
+
+<div class="card">
+    <h2>📋 Export Options</h2>
+    <div class="flex gap-1" style="flex-wrap: wrap;">
+        <button onclick="copyToClipboard()" class="btn">📋 Copy to Clipboard</button>
+        <button onclick="downloadList()" class="btn btn-secondary">💾 Download as Text</button>
+        <button onclick="matchProductsWithWoolworths()" class="btn btn-primary" id="matchBtn">
+            🔍 Match with Woolworths Products
+        </button>
+        <button onclick="downloadMatchedList('text')" class="btn btn-secondary" id="downloadTxtBtn" style="display: none;">
+            📄 Download Matched List (TXT)
+        </button>
+        <button onclick="downloadMatchedList('json')" class="btn btn-secondary" id="downloadJsonBtn" style="display: none;">
+            📋 Download Matched List (JSON)
+        </button>
+        <a href="{{ url_for('meal_plan') }}" class="btn btn-secondary">← Back to Meal Plan</a>
+    </div>
+</div>
+
+<!-- Floating Chat Button -->
+<button id="chatToggleBtn" onclick="toggleChat()" style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; background: #2c7a4d; color: white; border: none; font-size: 24px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 1000;">
+    💬
+</button>
+
+<!-- Chat Panel -->
+<div id="chatPanel" style="display: none; position: fixed; bottom: 90px; right: 20px; width: 400px; height: 500px; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; display: flex; flex-direction: column;">
+    <div style="background: #2c7a4d; color: white; padding: 1rem; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">🤖 Shopping Assistant</h3>
+        <button onclick="resetChat()" style="background: none; border: none; color: white; cursor: pointer; font-size: 14px;">🔄 Reset</button>
+    </div>
+    
+    <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 1rem; background: #f8f9fa;">
+        <div class="chat-message assistant">
+            <strong>Assistant:</strong> Hi! I'm your shopping assistant. I can help you:
+            <ul style="margin: 0.5rem 0;">
+                <li>Add items to your list</li>
+                <li>Remove items</li>
+                <li>Change quantities</li>
+                <li>Answer questions</li>
+            </ul>
+            Try saying "add more milk" or "remove all fruits"!
+        </div>
+    </div>
+    
+    <div style="padding: 1rem; border-top: 1px solid #ddd;">
+        <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="chatInput" placeholder="Type your message..." style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;" onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()" class="btn" style="padding: 0.5rem 1rem;">Send</button>
+        </div>
+        <div id="chatStatus" style="font-size: 12px; color: #666; margin-top: 0.5rem;"></div>
+    </div>
+</div>
+
+<style>
+.chat-message {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    animation: fadeIn 0.3s;
+}
+
+.chat-message.user {
+    background: #e3f2fd;
+    margin-left: 2rem;
+}
+
+.chat-message.assistant {
+    background: white;
+    margin-right: 2rem;
+}
+
+.chat-message.error {
+    background: #ffebee;
+    color: #c62828;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let checkedItems = new Set();
+
+function toggleItemHave(itemId, checked) {
+    if (checked) {
+        checkedItems.add(itemId);
+    } else {
+        checkedItems.delete(itemId);
+    }
+    
+    // Visual feedback - strike through checked items
+    const itemDiv = document.querySelector(`[data-item-id="${itemId}"]`);
+    if (itemDiv) {
+        if (checked) {
+            itemDiv.style.opacity = '0.5';
+            itemDiv.style.textDecoration = 'line-through';
+        } else {
+            itemDiv.style.opacity = '1';
+            itemDiv.style.textDecoration = 'none';
+        }
+    }
+    
+    updateShoppingSummary();
+}
+
+function removeItem(itemId) {
+    const itemDiv = document.querySelector(`[data-item-id="${itemId}"]`);
+    if (itemDiv && confirm('Remove this item from the shopping list?')) {
+        itemDiv.remove();
+        checkedItems.delete(itemId);
+        updateShoppingSummary();
+    }
+}
+
+function updateShoppingSummary() {
+    const totalItems = document.querySelectorAll('.shopping-item').length;
+    const checkedCount = checkedItems.size;
+    const toBuy = totalItems - checkedCount;
+    
+    const summary = document.getElementById('shoppingSummary');
+    if (summary) {
+        summary.innerHTML = `
+            <strong>${totalItems}</strong> total items • 
+            <strong style="color: #dc3545;">${checkedCount}</strong> already have • 
+            <strong style="color: #28a745;">${toBuy}</strong> to buy
+        `;
+    }
+}
+
+function copyToClipboard() {
+    let text = 'WOOLWORTHS SHOPPING LIST\n\n';
+    
+    // Get all unchecked items by category
+    document.querySelectorAll('.shopping-category').forEach(categoryDiv => {
+        const categoryName = categoryDiv.querySelector('h3').textContent;
+        const uncheckedItems = [];
+        
+        categoryDiv.querySelectorAll('.shopping-item').forEach(itemDiv => {
+            const checkbox = itemDiv.querySelector('.item-checkbox');
+            if (!checkbox.checked) {
+                const name = itemDiv.querySelector('.item-name').textContent.trim();
+                const quantity = itemDiv.querySelector('.item-quantity').textContent.trim();
+                uncheckedItems.push(`- ${name}${quantity ? ' - ' + quantity : ''}`);
+            }
+        });
+        
+        if (uncheckedItems.length > 0) {
+            text += categoryName + '\n';
+            text += '='.repeat(50) + '\n';
+            text += uncheckedItems.join('\n') + '\n\n';
+        }
+    });
+    
+    text += `\nTotal items to buy: ${document.querySelectorAll('.shopping-item').length - checkedItems.size}`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Shopping list copied to clipboard! (Checked items excluded)');
+    });
+}
+
+function downloadList() {
+    let text = 'WOOLWORTHS SHOPPING LIST\n\n';
+    
+    // Get all unchecked items by category
+    document.querySelectorAll('.shopping-category').forEach(categoryDiv => {
+        const categoryName = categoryDiv.querySelector('h3').textContent;
+        const uncheckedItems = [];
+        
+        categoryDiv.querySelectorAll('.shopping-item').forEach(itemDiv => {
+            const checkbox = itemDiv.querySelector('.item-checkbox');
+            if (!checkbox.checked) {
+                const name = itemDiv.querySelector('.item-name').textContent.trim();
+                const quantity = itemDiv.querySelector('.item-quantity').textContent.trim();
+                uncheckedItems.push(`- ${name}${quantity ? ' - ' + quantity : ''}`);
+            }
+        });
+        
+        if (uncheckedItems.length > 0) {
+            text += categoryName + '\n';
+            text += '='.repeat(50) + '\n';
+            text += uncheckedItems.join('\n') + '\n\n';
+        }
+    });
+    
+    text += `\nTotal items to buy: ${document.querySelectorAll('.shopping-item').length - checkedItems.size}`;
+    
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = 'woolworths-shopping-list.txt';
+    a.href = url;
+    a.click();
+}
+
+// Chat Functions
+function toggleChat() {
+    const panel = document.getElementById('chatPanel');
+    const btn = document.getElementById('chatToggleBtn');
+    
+    if (panel.style.display === 'none' || panel.style.display === '') {
+        panel.style.display = 'flex';
+        btn.textContent = '✕';
+    } else {
+        panel.style.display = 'none';
+        btn.textContent = '💬';
+    }
+}
+
+function addChatMessage(message, type = 'assistant') {
+    const messagesDiv = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${type}`;
+    messageDiv.innerHTML = `<strong>${type === 'user' ? 'You' : 'Assistant'}:</strong> ${message}`;
+    messagesDiv.appendChild(messageDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Show user message
+    addChatMessage(message, 'user');
+    input.value = '';
+    
+    // Show loading
+    const status = document.getElementById('chatStatus');
+    status.textContent = 'Assistant is thinking...';
+    
+    // Send to API
+    fetch('{{ url_for("shopping_chat") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: message })
+    })
+    .then(response => response.json())
+    .then(data => {
+        status.textContent = '';
+        
+        if (data.success) {
+            addChatMessage(data.response, 'assistant');
+            
+            // If list was modified, reload page
+            if (data.action !== 'none' && data.changes_made) {
+                setTimeout(() => {
+                    addChatMessage(`✅ ${data.changes_made}. Reloading list...`, 'assistant');
+                    setTimeout(() => location.reload(), 1500);
+                }, 500);
+            }
+        } else {
+            addChatMessage(`Error: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        status.textContent = '';
+        addChatMessage(`Error: ${error.message}`, 'error');
+    });
+}
+
+function resetChat() {
+    if (!confirm('Reset chat conversation?')) return;
+    
+    fetch('{{ url_for("reset_chat") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.innerHTML = `
+                <div class="chat-message assistant">
+                    <strong>Assistant:</strong> Chat reset! How can I help with your shopping list?
+                </div>
+            `;
+        }
+    });
+}
+
+// Match products with Woolworths
+async function matchProductsWithWoolworths() {
+    const matchBtn = document.getElementById('matchBtn');
+    const originalText = matchBtn.innerHTML;
+    matchBtn.innerHTML = '⏳ Searching Woolworths...';
+    matchBtn.disabled = true;
+    
+    try {
+        // Collect all shopping list items that are NOT checked (not in stock)
+        const items = [];
+        document.querySelectorAll('.shopping-item').forEach(itemDiv => {
+            const itemId = itemDiv.getAttribute('data-item-id');
+            
+            // Skip items that are already checked (marked as "already have")
+            if (checkedItems.has(itemId)) {
+                return;
+            }
+            
+            const nameElement = itemDiv.querySelector('.item-name');
+            if (!nameElement) return;
+            
+            const name = nameElement.textContent.trim().replace('🏪 ', '');
+            const quantityText = itemDiv.querySelector('.item-quantity');
+            
+            items.push({
+                name: name,
+                ingredient_name: name,
+                quantity: quantityText ? quantityText.textContent : '',
+                unit: '',
+                category: itemDiv.closest('.shopping-category')?.querySelector('h3')?.textContent || 'Other'
+            });
+        });
+        
+        if (items.length === 0) {
+            alert('No items to match!');
+            matchBtn.innerHTML = originalText;
+            matchBtn.disabled = false;
+            return;
+        }
+        
+        // Call API to match products
+        const response = await fetch('/api/match-products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ items: items })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const results = data.results;
+            
+            // Show results
+            document.getElementById('matchResults').style.display = 'block';
+            document.getElementById('matchSummary').innerHTML = `
+                ✅ Matched ${results.total_matched} of ${results.total_items} items (${results.match_rate.toFixed(1)}%)<br>
+                💰 Estimated Cost: $${results.estimated_cost.toFixed(2)}
+            `;
+            
+            // Generate copyable product list
+            let productListText = '================================================================================\n';
+            productListText += 'WOOLWORTHS SHOPPING LIST - MATCHED PRODUCTS\n';
+            productListText += '================================================================================\n';
+            productListText += `Match Rate: ${results.match_rate.toFixed(1)}%\n`;
+            productListText += `Total Cost: $${results.estimated_cost.toFixed(2)}\n`;
+            productListText += '\n';
+            
+            // Group by category
+            const categories = {};
+            results.matched_items.forEach(item => {
+                const cat = item.category;
+                if (!categories[cat]) {
+                    categories[cat] = [];
+                }
+                categories[cat].push(item);
+            });
+            
+            // Add matched items by category
+            for (const [category, items] of Object.entries(categories).sort()) {
+                productListText += '\n================================================================================\n';
+                productListText += `${category.toUpperCase()}\n`;
+                productListText += '================================================================================\n';
+                
+                items.forEach(item => {
+                    productListText += `\n✓ ${item.ingredient}\n`;
+                    productListText += `  Need: ${item.original_quantity} ${item.original_unit}\n`;
+                    productListText += `  Product: ${item.display_name}\n`;
+                    productListText += `  Price: $${item.price.toFixed(2)}\n`;
+                    productListText += `  Stockcode: ${item.stockcode}\n`;
+                    if (item.cup_string) {
+                        productListText += `  Unit Price: ${item.cup_string}\n`;
+                    }
+                });
+            }
+            
+            // Add unmatched items
+            if (results.unmatched_items && results.unmatched_items.length > 0) {
+                productListText += '\n================================================================================\n';
+                productListText += 'UNMATCHED ITEMS (Manual Search Required)\n';
+                productListText += '================================================================================\n';
+                
+                results.unmatched_items.forEach(item => {
+                    productListText += `\n✗ ${item.ingredient}\n`;
+                    productListText += `  Need: ${item.quantity} ${item.unit}\n`;
+                });
+            }
+            
+            productListText += '\n================================================================================\n';
+            productListText += 'END OF SHOPPING LIST\n';
+            productListText += '================================================================================\n';
+            
+            // Display the text
+            document.getElementById('productListText').textContent = productListText;
+            document.getElementById('matchedProductsList').style.display = 'block';
+            
+            // Store for copy function
+            window.matchedProductsText = productListText;
+            
+            // Show download buttons
+            document.getElementById('downloadTxtBtn').style.display = 'inline-block';
+            document.getElementById('downloadJsonBtn').style.display = 'inline-block';
+            
+            matchBtn.innerHTML = '✅ Products Matched!';
+        } else {
+            alert('Error matching products: ' + data.error);
+            matchBtn.innerHTML = originalText;
+            matchBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to match products. Please try again.');
+        matchBtn.innerHTML = originalText;
+        matchBtn.disabled = false;
+    }
+}
+
+function downloadMatchedList(format) {
+    window.location.href = `/download-shopping-list?format=${format}`;
+}
+
+function copyProductList() {
+    const text = window.matchedProductsText;
+    if (!text) {
+        alert('No product list to copy!');
+        return;
+    }
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(text).then(() => {
+        // Show success feedback
+        const btn = event.target;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        btn.style.background = '#4caf50';
+        
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.style.background = '';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard. Please select and copy manually.');
+    });
+}
+
+// Load shopping summary when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    updateShoppingSummary();
+});
+</script>
+{% endblock %}

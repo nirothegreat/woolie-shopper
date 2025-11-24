@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Flask
+instance/
+.webassets-cache
+flask_session/
+
+# Database (user data - should not be committed)
+*.db
+*.sqlite
+*.sqlite3
+
+# Sensitive files
+woolworths_cookies.json
+*_cookies.json
+*.pem
+*.key
+
+# Virtual environments
+migration_env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Cloud credentials
+service-account-key.json
+google-credentials.json
+
+# Temporary files
+*.tmp
+*.bak
+*~

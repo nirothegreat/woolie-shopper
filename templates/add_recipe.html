@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Add Recipe - Woolies Shopper{% endblock %}
+
+{% block content %}
+<h1>➕ Add New Recipe</h1>
+
+<div class="card mt-3">
+    <h2>Import from URL</h2>
+    <form method="post" action="{{ url_for('add_recipe') }}">
+        <div class="form-group">
+            <label for="recipe_url">Recipe URL:</label>
+            <input type="url" id="recipe_url" name="recipe_url" placeholder="https://www.recipetineats.com/...">
+            <small class="text-muted">Supports most recipe websites, Instagram, and Facebook</small>
+        </div>
+        <button type="submit" class="btn">Import Recipe</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Manual Entry</h2>
+    <form method="post" action="{{ url_for('add_recipe') }}">
+        <div class="form-group">
+            <label for="name">Recipe Name: *</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" name="description"></textarea>
+        </div>
+        
+        <div class="flex gap-1">
+            <div class="form-group" style="flex: 1;">
+                <label for="servings">Servings:</label>
+                <input type="number" id="servings" name="servings" value="4">
+            </div>
+            
+            <div class="form-group" style="flex: 1;">
+                <label for="prep_time">Prep Time:</label>
+                <input type="text" id="prep_time" name="prep_time" placeholder="15 mins">
+            </div>
+            
+            <div class="form-group" style="flex: 1;">
+                <label for="cook_time">Cook Time:</label>
+                <input type="text" id="cook_time" name="cook_time" placeholder="30 mins">
+            </div>
+        </div>
+        
+        <div class="flex gap-1">
+            <div class="form-group" style="flex: 1;">
+                <label for="difficulty">Difficulty:</label>
+                <select id="difficulty" name="difficulty">
+                    <option value="Easy">Easy</option>
+                    <option value="Medium" selected>Medium</option>
+                    <option value="Hard">Hard</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="flex: 1;">
+                <label for="meal_type">Meal Type:</label>
+                <select id="meal_type" name="meal_type">
+                    <option value="Breakfast">Breakfast</option>
+                    <option value="Lunch">Lunch</option>
+                    <option value="Dinner" selected>Dinner</option>
+                    <option value="Snack">Snack</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="flex: 1;">
+                <label for="cuisine">Cuisine:</label>
+                <input type="text" id="cuisine" name="cuisine" placeholder="Italian, Asian, etc.">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="ingredients">Ingredients: *</label>
+            <textarea id="ingredients" name="ingredients" rows="10" required placeholder="Enter one ingredient per line. Format examples:
+
+2 cups flour
+1 tbsp olive oil
+500g chicken breast (diced)
+1 large onion (chopped)
+1/2 avocado (cubed)
+150g salmon, cooked and flaked
+Salt and pepper, to taste
+
+You can also add section headers:
+Main Ingredients
+Dressing/Sauce
+Toppings"></textarea>
+            <small class="text-muted">Section headers (without numbers) will be automatically skipped. Notes in parentheses or after commas are captured.</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="method">Method:</label>
+            <textarea id="method" name="method" rows="8" placeholder="Step 1: ...
+Step 2: ..."></textarea>
+        </div>
+        
+        <button type="submit" class="btn">Add Recipe</button>
+        <a href="{{ url_for('recipes') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

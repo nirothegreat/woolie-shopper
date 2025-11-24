@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Preferences - Woolies Shopper{% endblock %}
+
+{% block content %}
+<h1>⚙️ Shopping Preferences</h1>
+<p class="text-muted">Manage substitutions and organic preferences</p>
+
+<div class="card mt-3">
+    <h2>🔄 Substitutions</h2>
+    <p class="text-muted">Automatically substitute ingredients</p>
+    
+    {% if substitutions %}
+    <table class="meal-plan-table">
+        <thead>
+            <tr>
+                <th>Original Ingredient</th>
+                <th>Substitute With</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in substitutions %}
+            <tr>
+                <td>{{ sub.original }}</td>
+                <td>{{ sub.substitute }}</td>
+                <td>
+                    <button class="btn btn-sm btn-danger">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No substitutions configured yet.</p>
+    {% endif %}
+    
+    <div class="mt-3">
+        <h3>Add Substitution</h3>
+        <form method="post" class="flex gap-1">
+            <input type="text" placeholder="Original ingredient" name="original" style="flex: 1;">
+            <input type="text" placeholder="Substitute with" name="substitute" style="flex: 1;">
+            <button type="submit" class="btn">Add</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <h2>🌱 Organic Preferences</h2>
+    <p class="text-muted">Always search for organic versions of these items</p>
+    
+    {% if organic_prefs %}
+    <ul>
+        {% for pref in organic_prefs %}
+        <li>
+            {{ pref }}
+            <button class="btn btn-sm btn-danger" style="margin-left: 1rem;">Remove</button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No organic preferences set. By default, organic pumpkin is preferred.</p>
+    {% endif %}
+    
+    <div class="mt-3">
+        <h3>Add Organic Preference</h3>
+        <form method="post" class="flex gap-1">
+            <input type="text" placeholder="Item name (e.g., strawberries)" name="item_name" style="flex: 1;">
+            <button type="submit" class="btn">Add</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <h2>🎯 Shopping Defaults</h2>
+    <p class="text-muted">Configure default shopping behaviors</p>
+    
+    <div class="form-group">
+        <label>Default Store:</label>
+        <input type="text" value="{{ defaults.get('default_store', 'Woolworths') }}" readonly>
+    </div>
+    
+    <div class="form-group">
+        <label>Highlight Expensive Items (over $):</label>
+        <input type="number" value="{{ defaults.get('highlight_expensive_items', 15) }}">
+    </div>
+    
+    <div class="form-group">
+        <label>
+            <input type="checkbox" {% if defaults.get('prefer_organic', True) %}checked{% endif %}>
+            Prefer organic produce when available
+        </label>
+    </div>
+    
+    <div class="form-group">
+        <label>
+            <input type="checkbox" {% if defaults.get('fallback_non_organic', True) %}checked{% endif %}>
+            Add non-organic if organic unavailable
+        </label>
+    </div>
+    
+    <button class="btn mt-2">💾 Save Defaults</button>
+</div>
+{% endblock %}

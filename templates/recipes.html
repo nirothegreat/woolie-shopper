@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Recipe Library - Woolies Shopper{% endblock %}
+
+{% block content %}
+<h1>📖 Recipe Library</h1>
+<p class="text-muted">Browse and manage your recipe collection</p>
+
+<div class="card mt-3">
+    <form method="get" action="{{ url_for('recipes') }}">
+        <div class="flex gap-1 align-center">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <input type="text" name="search" placeholder="Search recipes..." value="{{ search or '' }}">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <select name="meal_type">
+                    <option value="All" {% if not meal_type or meal_type == 'All' %}selected{% endif %}>All Meal Types</option>
+                    <option value="Breakfast" {% if meal_type == 'Breakfast' %}selected{% endif %}>Breakfast</option>
+                    <option value="Lunch" {% if meal_type == 'Lunch' %}selected{% endif %}>Lunch</option>
+                    <option value="Dinner" {% if meal_type == 'Dinner' %}selected{% endif %}>Dinner</option>
+                    <option value="Snack" {% if meal_type == 'Snack' %}selected{% endif %}>Snack</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Search</button>
+        </div>
+    </form>
+</div>
+
+<div class="recipes-grid mt-3">
+    {% for recipe in recipes %}
+    <div class="recipe-card">
+        {% if recipe.get('image_url') %}
+        <img src="{{ recipe['image_url'] }}" alt="{{ recipe['name'] }}">
+        {% else %}
+        <div style="width: 100%; height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;">
+            🍽️
+        </div>
+        {% endif %}
+        <div class="recipe-card-body">
+            <h3>{{ recipe['name'] }}</h3>
+            <p class="text-muted">{{ recipe.get('description', '')[:100] }}{% if recipe.get('description', '')|length > 100 %}...{% endif %}</p>
+            <div class="mt-2">
+                <span class="recipe-badge">{{ recipe.get('meal_type', 'Dinner') }}</span>
+                {% if recipe.get('difficulty') %}<span class="recipe-badge">{{ recipe['difficulty'] }}</span>{% endif %}
+                {% if recipe.get('total_time') %}<span class="recipe-badge">⏱️ {{ recipe['total_time'] }}</span>{% endif %}
+            </div>
+            <div class="mt-2 flex gap-1">
+                <a href="{{ url_for('recipe_detail', recipe_id=recipe['id']) }}" class="btn btn-sm">View</a>
+                <form method="post" action="{{ url_for('delete_recipe', recipe_id=recipe['id']) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this recipe?')">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <p>No recipes found. <a href="{{ url_for('add_recipe') }}">Add your first recipe!</a></p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Meal Planning - Woolies Shopper{% endblock %}
+
+{% block extra_css %}
+<style>
+.meal-plan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    table-layout: auto;
+}
+
+.meal-plan-table th {
+    background: #f5f5f5;
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    border: 1px solid #ddd;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.meal-plan-table td {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.meal-plan-table td:first-child {
+    width: 100px;
+    font-weight: 500;
+}
+
+.meal-plan-table select {
+    width: 100%;
+    min-width: 150px;
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    border: 2px solid #007bff;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.meal-plan-table select:hover {
+    border-color: #0056b3;
+    background: #f8f9fa;
+}
+
+.meal-plan-table select:focus {
+    outline: none;
+    border-color: #0056b3;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.meal-plan-table select option {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.meal-plan-table .text-muted {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #666;
+}
+
+/* Make table scrollable on small screens */
+@media (max-width: 1200px) {
+    .meal-plan-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>📅 Meal Planning</h1>
+<p class="text-muted">Plan your meals for the week</p>
+
+<div class="card mt-3">
+    <div class="flex justify-between align-center mb-2">
+        <h2>Week of {{ meal_plan.start_date }} to {{ meal_plan.end_date }}</h2>
+        <div class="flex gap-1" style="flex-wrap: wrap;">
+            <a href="{{ url_for('list_meal_plans') }}" class="btn btn-secondary">
+                📋 Saved Plans
+            </a>
+            <button onclick="saveMealPlanPrompt()" class="btn btn-secondary">
+                💾 Save Plan
+            </button>
+            <form method="post" action="{{ url_for('auto_generate_meal_plan') }}" style="display: inline;">
+                <button type="submit" class="btn btn-secondary" onclick="return confirm('This will replace your current meal plan. Continue?')">
+                    🎲 Random Plan
+                </button>
+            </form>
+            <button onclick="showAIForm()" class="btn">
+                🤖 AI-Powered Plan
+            </button>
+        </div>
+    </div>
+    
+    {% if meal_plan.ai_strategy %}
+    <div class="alert alert-success" style="margin-bottom: 1rem;">
+        <strong>🧠 AI Strategy:</strong> {{ meal_plan.ai_strategy }}
+    </div>
+    {% endif %}
+    
+    <form id="mealPlanForm">
+        <table class="meal-plan-table">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>🌅 Breakfast</th>
+                    <th>👧 Maya Breakfast</th>
+                    <th>👦 Ehren Breakfast</th>
+                    <th>🥪 Lunch</th>
+                    <th>🎒 Ehren School Lunch</th>
+                    <th>🍽️ Dinner</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] %}
+                {% for day in days %}
+                {% set day_num = loop.index0 %}
+                {% set current_date = (meal_plan.start_date ~ '').__str__() %}
+                {% set day_date = None %}
+                {% set day_reasoning = None %}
+                {% if meal_plan.meals %}
+                    {% set sorted_dates = meal_plan.meals.keys()|list|sort %}
+                    {% if day_num < sorted_dates|length %}
+                        {% set day_date = sorted_dates[day_num] %}
+                        {% set day_reasoning = meal_plan.meals.get(day_date, {}).get('reasoning') %}
+                    {% endif %}
+                {% endif %}
+                <tr>
+                    <td>
+                        <strong>{{ day }}</strong><br>
+                        <small class="text-muted">{{ day_date or '' }}</small>
+                        {% if day_reasoning %}
+                        <br><small style="color: #2c7a4d; font-style: italic;">💡 {{ day_reasoning }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <select name="breakfast_{{ day_num }}" data-day="{{ day_num }}" data-meal="breakfast">
+                            <option value="">None</option>
+                            {% for recipe in recipes %}
+                            <option value="{{ recipe.name }}" 
+                                {% if day_date and meal_plan.meals.get(day_date, {}).get('breakfast') == recipe.name %}selected{% endif %}>
+                                {{ recipe.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="breakfast_maya_{{ day_num }}" data-day="{{ day_num }}" data-meal="breakfast_maya">
+                            <option value="">None</option>
+                            {% for recipe in recipes %}
+                            <option value="{{ recipe.name }}" 
+                                {% if day_date and meal_plan.meals.get(day_date, {}).get('breakfast_maya') == recipe.name %}selected{% endif %}>
+                                {{ recipe.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="breakfast_ehren_{{ day_num }}" data-day="{{ day_num }}" data-meal="breakfast_ehren">
+                            <option value="">None</option>
+                            {% for recipe in recipes %}
+                            <option value="{{ recipe.name }}" 
+                                {% if day_date and meal_plan.meals.get(day_date, {}).get('breakfast_ehren') == recipe.name %}selected{% endif %}>
+                                {{ recipe.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="lunch_{{ day_num }}" data-day="{{ day_num }}" data-meal="lunch">
+                            <option value="">None</option>
+                            {% for recipe in recipes %}
+                            <option value="{{ recipe.name }}"
+                                {% if day_date and meal_plan.meals.get(day_date, {}).get('lunch') == recipe.name %}selected{% endif %}>
+                                {{ recipe.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if day_date and day_num > 0 %}
+                            {% set prev_date = sorted_dates[day_num - 1] if day_num - 1 < sorted_dates|length else None %}
+                            {% if prev_date and meal_plan.meals.get(prev_date, {}).get('lunch') == meal_plan.meals.get(day_date, {}).get('lunch') %}
+                                <small class="text-muted">🔁 Leftovers</small>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <select name="lunch_ehren_{{ day_num }}" data-day="{{ day_num }}" data-meal="lunch_ehren">
+                            <option value="">None</option>
+                            {% for recipe in recipes %}
+                            <option value="{{ recipe.name }}"
+                                {% if day_date and meal_plan.meals.get(day_date, {}).get('lunch_ehren') == recipe.name %}selected{% endif %}>
+                                {{ recipe.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="dinner_{{ day_num }}" data-day="{{ day_num }}" data-meal="dinner">
+                            <option value="">None</option>
+                            {% for recipe in recipes %}
+                            <option value="{{ recipe.name }}"
+                                {% if day_date and meal_plan.meals.get(day_date, {}).get('dinner') == recipe.name %}selected{% endif %}>
+                                {{ recipe.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if day_date and day_num > 0 %}
+                            {% set prev_date = sorted_dates[day_num - 1] if day_num - 1 < sorted_dates|length else None %}
+                            {% if prev_date and meal_plan.meals.get(prev_date, {}).get('dinner') == meal_plan.meals.get(day_date, {}).get('dinner') %}
+                                <small class="text-muted">🔁 Leftovers</small>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
+    
+    <div class="flex gap-1 mt-3">
+        <button onclick="saveMealPlan()" class="btn">💾 Save Meal Plan</button>
+        <a href="{{ url_for('shopping_list') }}" class="btn btn-secondary">🛒 Generate Shopping List</a>
+    </div>
+</div>
+
+<!-- AI Meal Plan Modal -->
+<div id="aiPlanModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; margin: 50px auto; max-width: 600px; border-radius: 8px; padding: 2rem;">
+        <h2>🤖 AI-Powered Meal Planning</h2>
+        <p>Let AI create an intelligent meal plan considering your recipes and family preferences.</p>
+        
+        <form method="post" action="{{ url_for('ai_generate_meal_plan') }}">
+            <div class="form-group">
+                <label for="context">Additional Instructions (optional):</label>
+                <textarea id="context" name="context" rows="4" placeholder="E.g., 'More vegetarian meals', 'Focus on quick recipes', 'Avoid seafood this week', etc."></textarea>
+            </div>
+            
+            <div class="alert alert-warning">
+                <strong>Note:</strong> This feature requires an OpenAI API key. The AI will:
+                <ul style="margin: 0.5rem 0;">
+                    <li>Consider family preferences (Ehren, Maya, Daddy, Mommy)</li>
+                    <li>Balance nutrition and variety</li>
+                    <li>Plan realistic leftovers</li>
+                    <li>Explain reasoning for each day</li>
+                </ul>
+            </div>
+            
+            <div class="flex gap-1 mt-2">
+                <button type="submit" class="btn">✨ Generate with AI</button>
+                <button type="button" onclick="hideAIForm()" class="btn btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <h2>💡 Tips</h2>
+    <ul>
+        <li><strong>🤖 AI-Powered Plan:</strong> Let AI create an intelligent meal plan considering family preferences, nutrition, and variety</li>
+        <li><strong>🎲 Random Plan:</strong> Quickly generate a random meal plan with realistic leftover scheduling</li>
+        <li><strong>🧠 AI Reasoning:</strong> When using AI, see explanations for why each day's meals were chosen</li>
+        <li><strong>✏️ Manual Selection:</strong> You can also manually select recipes for each meal slot</li>
+        <li><strong>🔁 Leftovers:</strong> Both auto-generators plan for realistic leftovers (2-3 days)</li>
+        <li>Leave blank if you're eating out or skipping a meal</li>
+        <li>The shopping list will aggregate all ingredients from your selected recipes</li>
+        <li>Changes are saved automatically as you select recipes</li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// AI Modal Functions
+function showAIForm() {
+    document.getElementById('aiPlanModal').style.display = 'block';
+}
+
+function hideAIForm() {
+    document.getElementById('aiPlanModal').style.display = 'none';
+}
+
+// Save meal plan function
+async function saveMealPlanPrompt() {
+    const planName = prompt('Enter a name for this meal plan:', 'Week of {{ meal_plan.start_date }}');
+    
+    if (!planName) {
+        return; // User canceled
+    }
+    
+    try {
+        const response = await fetch('{{ url_for("save_meal_plan") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: planName
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Meal plan saved successfully!');
+        } else {
+            alert('❌ Error: ' + (data.error || 'Failed to save meal plan'));
+        }
+    } catch (error) {
+        console.error('Error saving meal plan:', error);
+        alert('❌ Failed to save meal plan');
+    }
+}
+
+// Auto-save meal plan as selections change
+document.querySelectorAll('select[data-day]').forEach(select => {
+    select.addEventListener('change', function() {
+        const day = this.dataset.day;
+        const mealType = this.dataset.meal;
+        const recipeName = this.value;
+        const date = getDateForDay(day);
+        
+        fetch('{{ url_for("update_meal_plan") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                date: date,
+                meal_type: mealType,
+                recipe_name: recipeName
+            })
+        });
+    });
+});
+
+function getDateForDay(dayNum) {
+    const start = new Date('{{ meal_plan.start_date }}');
+    const date = new Date(start);
+    date.setDate(start.getDate() + parseInt(dayNum));
+    return date.toISOString().split('T')[0];
+}
+
+function saveMealPlan() {
+    alert('Meal plan saved! Go to Shopping List to generate your grocery list.');
+}
+</script>
+{% endblock %}

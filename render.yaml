@@ -1,0 +1,25 @@
+# Render Blueprint for Woolies Shopper Flask App
+
+services:
+  # Flask Web Service
+  - type: web
+    name: woolies-shopper
+    runtime: python
+    plan: starter  # $7/month - change to 'free' for free tier (with spin down)
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn flask_app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Set this manually in Render dashboard (not used - using Google Cloud)
+    healthCheckPath: /
+
+databases:
+  # PostgreSQL Database
+  - name: woolies-db
+    plan: starter  # $7/month
+    databaseName: woolies_shopper
+    user: woolies_user
