@@ -92,14 +92,39 @@ class ShoppingListChatAgent:
             },
             {
                 "name": "set_preferred_product",
-                "description": "Set a preferred Woolworths product for an ingredient",
+                "description": "Set or update a preferred Woolworths product for an ingredient. Saves permanently to user preferences.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "ingredient": {"type": "string", "description": "Ingredient name"},
-                        "stockcode": {"type": "string", "description": "Woolworths stockcode"}
+                        "ingredient": {"type": "string", "description": "Ingredient name (e.g., 'greek yogurt', 'bananas')"},
+                        "stockcode": {"type": "integer", "description": "Woolworths stockcode"},
+                        "fallback_stockcodes": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "description": "Optional list of fallback stockcodes if primary is unavailable"
+                        }
                     },
                     "required": ["ingredient", "stockcode"]
+                }
+            },
+            {
+                "name": "get_preferred_products",
+                "description": "Get all saved preferred products for the user",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "remove_preferred_product",
+                "description": "Remove a preferred product preference",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "ingredient": {"type": "string", "description": "Ingredient name to remove preference for"}
+                    },
+                    "required": ["ingredient"]
                 }
             }
         ]
@@ -281,7 +306,72 @@ class ShoppingListChatAgent:
                 action_type = "set_preferred"
                 ingredient = tool_input.get("ingredient")
                 stockcode = tool_input.get("stockcode")
-                changes.append(f"Set preferred product for {ingredient}: {stockcode}")
+                fallback_codes = tool_input.get("fallback_stockcodes", [])
+                
+                # Actually save to Firestore
+                try:
+                    from preferred_products_manager import get_preferred_products_manager
+                    from shopping_list_matcher import ShoppingListMatcher
+                    
+                    manager = get_preferred_products_manager()
+                    
+                    # Get product details from Woolworths
+                    matcher = ShoppingListMatcher(use_preferences=False)
+                    product_details = matcher.get_product_details(str(stockcode))
+                    
+                    if product_details:
+                        success = manager.set_preferred_product(
+                            ingredient_name=ingredient,
+                            stockcode=int(stockcode),
+                            product_name=product_details.get('display_name', ''),
+                            price=product_details.get('price', 0),
+                            image_url=product_details.get('imageUrl', ''),
+                            fallback_stockcodes=[int(code) for code in fallback_codes] if fallback_codes else []
+                        )
+                        
+                        if success:
+                            fallback_text = f" with {len(fallback_codes)} fallback(s)" if fallback_codes else ""
+                            changes.append(f"✅ Saved preference: {ingredient} → {product_details.get('display_name', stockcode)}{fallback_text}")
+                        else:
+                            changes.append(f"❌ Failed to save preference for {ingredient}")
+                    else:
+                        changes.append(f"❌ Could not find product details for stockcode {stockcode}")
+                        
+                except Exception as e:
+                    changes.append(f"❌ Error saving preference: {str(e)}")
+            
+            elif tool_name == "get_preferred_products":
+                action_type = "get_preferred"
+                try:
+                    from preferred_products_manager import get_preferred_products_manager
+                    manager = get_preferred_products_manager()
+                    prefs = manager.list_all_preferences()
+                    
+                    if prefs:
+                        pref_text = "\n".join([
+                            f"  • {p['ingredient_name']} → {p['product_name']} ({p['stockcode']}) - used {p.get('use_count', 0)} times"
+                            for p in prefs
+                        ])
+                        changes.append(f"📋 Your {len(prefs)} preferred products:\n{pref_text}")
+                    else:
+                        changes.append("No preferred products saved yet.")
+                except Exception as e:
+                    changes.append(f"❌ Error getting preferences: {str(e)}")
+            
+            elif tool_name == "remove_preferred_product":
+                action_type = "remove_preferred"
+                ingredient = tool_input.get("ingredient")
+                try:
+                    from preferred_products_manager import get_preferred_products_manager
+                    manager = get_preferred_products_manager()
+                    success = manager.remove_preferred_product(ingredient)
+                    
+                    if success:
+                        changes.append(f"✅ Removed preference for {ingredient}")
+                    else:
+                        changes.append(f"⚠️ No preference found for {ingredient}")
+                except Exception as e:
+                    changes.append(f"❌ Error removing preference: {str(e)}")
         
         return {
             "response": text_response or "I've updated your shopping list!",

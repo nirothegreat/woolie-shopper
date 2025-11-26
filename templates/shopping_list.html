@@ -352,7 +352,11 @@ function addChatMessage(message, type = 'assistant') {
     const messagesDiv = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
     messageDiv.className = `chat-message ${type}`;
-    messageDiv.innerHTML = `<strong>${type === 'user' ? 'You' : 'Assistant'}:</strong> ${message}`;
+    
+    // Preserve line breaks and format the message
+    const formattedMessage = message.replace(/\n/g, '<br>');
+    messageDiv.innerHTML = `<strong>${type === 'user' ? 'You' : 'Assistant'}:</strong> ${formattedMessage}`;
+    
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -386,13 +390,16 @@ function sendMessage() {
         if (data.success) {
             addChatMessage(data.response, 'assistant');
             
-            // If list was modified, reload page
-            if (data.action !== 'none' && data.changes_made) {
+            // Only reload if the SHOPPING LIST was modified (not for preference changes)
+            const listModifyingActions = ['add', 'remove', 'modify'];
+            if (listModifyingActions.includes(data.action) && data.changes_made) {
                 setTimeout(() => {
                     addChatMessage(`✅ ${data.changes_made}. Reloading list...`, 'assistant');
                     setTimeout(() => location.reload(), 1500);
                 }, 500);
             }
+            // For preference actions (set_preferred, get_preferred, remove_preferred), 
+            // just show the message without reloading
         } else {
             addChatMessage(`Error: ${data.error}`, 'error');
         }
