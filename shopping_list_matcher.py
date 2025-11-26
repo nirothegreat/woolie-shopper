@@ -10,8 +10,20 @@ from typing import List, Dict, Optional
 class ShoppingListMatcher:
     """Matches shopping list ingredients to Woolworths products"""
     
-    def __init__(self, mcp_url: str = None):
+    def __init__(self, mcp_url: str = None, use_preferences: bool = True):
         self.mcp_url = mcp_url or os.getenv('WOOLWORTHS_MCP_URL', 'https://woolies-mcp-server-dk2j6ogx4a-uc.a.run.app')
+        self.use_preferences = use_preferences
+        self.preferences_manager = None
+        
+        # Initialize preferences manager if enabled
+        if self.use_preferences:
+            try:
+                from preferred_products_manager import get_preferred_products_manager
+                self.preferences_manager = get_preferred_products_manager()
+                print("✅ Preferred products enabled")
+            except Exception as e:
+                print(f"⚠️ Preferred products disabled: {e}")
+                self.use_preferences = False
     
     def get_product_details(self, stockcode: str) -> Optional[Dict]:
         """Get product details by stockcode from Woolworths using direct API"""
@@ -56,11 +68,76 @@ class ShoppingListMatcher:
             traceback.print_exc()
             return None
     
-    def search_product(self, ingredient: str, quantity: str = "", unit: str = "") -> Optional[Dict]:
-        """Search Woolworths for a product matching the ingredient"""
+    def search_product(self, ingredient: str, quantity: str = "", unit: str = "", user_id: str = "default") -> Optional[Dict]:
+        """Search Woolworths for a product matching the ingredient
+        
+        NOTE: Checks preferred products first, then falls back to search.
+        All intelligent substitutions (pumpkin cubes -> cut pumpkin, etc.)
+        should be handled by the AI in the shopping list generation phase.
+        """
         try:
             search_query = ingredient.strip()
             
+            # Check for preferred product first
+            if self.use_preferences and self.preferences_manager:
+                preferred = self.preferences_manager.get_preferred_product(ingredient, user_id)
+                if preferred:
+                    # Try primary preferred product
+                    stockcode = preferred['stockcode']
+                    print(f"💚 Checking preferred product for '{ingredient}': {preferred.get('product_name', stockcode)}")
+                    
+                    product_details = self.get_product_details(str(stockcode))
+                    
+                    # Check if available
+                    if product_details and product_details.get('isAvailable', True):
+                        print(f"✅ Using preferred: {product_details.get('display_name')}")
+                        return {
+                            'ingredient': ingredient,
+                            'quantity': quantity,
+                            'unit': unit,
+                            'matched': True,
+                            'is_preferred': True,
+                            'product_name': product_details.get('name', ''),
+                            'display_name': product_details.get('display_name', ''),
+                            'stockcode': product_details.get('stockcode', 0),
+                            'price': product_details.get('price') or 0,
+                            'cup_price': 0,
+                            'cup_string': '',
+                            'size': product_details.get('size', ''),
+                            'image_url': product_details.get('imageUrl', ''),
+                            'is_available': True
+                        }
+                    
+                    # Primary unavailable - try fallbacks
+                    fallback_codes = preferred.get('fallback_stockcodes', [])
+                    if fallback_codes:
+                        print(f"⚠️ Preferred product unavailable, trying {len(fallback_codes)} fallbacks...")
+                        for fallback_code in fallback_codes:
+                            fallback_details = self.get_product_details(str(fallback_code))
+                            if fallback_details and fallback_details.get('isAvailable', True):
+                                print(f"✅ Using fallback: {fallback_details.get('display_name')}")
+                                return {
+                                    'ingredient': ingredient,
+                                    'quantity': quantity,
+                                    'unit': unit,
+                                    'matched': True,
+                                    'is_preferred': True,
+                                    'is_fallback': True,
+                                    'product_name': fallback_details.get('name', ''),
+                                    'display_name': fallback_details.get('display_name', ''),
+                                    'stockcode': fallback_details.get('stockcode', 0),
+                                    'price': fallback_details.get('price') or 0,
+                                    'cup_price': 0,
+                                    'cup_string': '',
+                                    'size': fallback_details.get('size', ''),
+                                    'image_url': fallback_details.get('imageUrl', ''),
+                                    'is_available': True
+                                }
+                        print(f"⚠️ All fallbacks unavailable, searching...")
+                    else:
+                        print(f"⚠️ Preferred product unavailable, no fallbacks specified, searching...")
+            
+            # Fall back to search if no preference or preference not available
             response = requests.post(
                 f'{self.mcp_url}/api/search',
                 json={'searchTerm': search_query, 'pageSize': 3},
@@ -101,7 +178,11 @@ class ShoppingListMatcher:
             return None
     
     def match_shopping_list(self, shopping_list_items: List[Dict]) -> Dict:
-        """Match all items in shopping list to Woolworths products"""
+        """Match all items in shopping list to Woolworths products
+        
+        NOTE: Assumes the shopping list has already been optimized by AI.
+        No duplicate detection or substitutions here - AI should have handled that.
+        """
         matched_items = []
         unmatched_items = []
         total_cost = 0.0
