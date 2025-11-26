@@ -141,8 +141,12 @@ class ShoppingListChatAgent:
             Dict with response and any actions taken
         """
         
+        print(f"🤖 Chat request: '{user_message}'")
+        print(f"📋 Shopping list categories: {len(current_shopping_list)} categories")
+        
         # Build system message with current list context
         system_message = self._build_system_message(current_shopping_list)
+        print(f"📝 System message length: {len(system_message)} chars")
         
         # Build messages array
         messages = self.conversation_history + [
@@ -151,6 +155,7 @@ class ShoppingListChatAgent:
         
         try:
             # Call Claude with tool use
+            print(f"🔄 Calling Claude API (model: {self.model})...")
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2048,
@@ -158,9 +163,11 @@ class ShoppingListChatAgent:
                 tools=self.tools,
                 messages=messages
             )
+            print(f"✅ Claude API responded (stop_reason: {response.stop_reason})")
             
             # Process response
             result = self._process_response(response, current_shopping_list)
+            print(f"📤 Response action: {result.get('action', 'none')}")
             
             # Update conversation history
             self.conversation_history.append({"role": "user", "content": user_message})
@@ -172,13 +179,34 @@ class ShoppingListChatAgent:
             return result
             
         except Exception as e:
-            print(f"Chat error: {e}")
             import traceback
-            traceback.print_exc()
+            error_trace = traceback.format_exc()
+            print(f"Chat error: {e}")
+            print(error_trace)
+            
+            # Provide more specific error messages
+            error_message = "I encountered an error. "
+            
+            if "rate_limit" in str(e).lower():
+                error_message += "API rate limit reached. Please wait a moment and try again."
+            elif "timeout" in str(e).lower():
+                error_message += "Request timed out. Please try again."
+            elif "authentication" in str(e).lower() or "api_key" in str(e).lower():
+                error_message += "API authentication issue. Please check your API key."
+            elif "firestore" in str(e).lower() or "database" in str(e).lower():
+                error_message += "Database connection issue. Your message was received but couldn't be saved."
+            elif "tool" in str(e).lower() and "input" in str(e).lower():
+                error_message += "Invalid tool parameters. Could you rephrase your request?"
+            else:
+                # Include error type for debugging
+                error_type = type(e).__name__
+                error_message += f"({error_type}: {str(e)[:100]}...)" if len(str(e)) > 100 else f"({error_type}: {str(e)})"
+            
             return {
-                "response": "I encountered an error. Could you please rephrase your request?",
+                "response": error_message,
                 "action": "none",
-                "changes_made": None
+                "changes_made": None,
+                "error": str(e)
             }
     
     def _build_system_message(self, shopping_list: Dict) -> str:
