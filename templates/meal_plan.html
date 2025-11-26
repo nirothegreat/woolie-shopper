@@ -100,6 +100,9 @@
             <button onclick="showAIForm()" class="btn">
                 🤖 AI-Powered Plan
             </button>
+            <button onclick="exportMealPlan()" class="btn btn-success">
+                📥 Export Plan
+            </button>
         </div>
     </div>
     
@@ -353,6 +356,38 @@ function getDateForDay(dayNum) {
 
 function saveMealPlan() {
     alert('Meal plan saved! Go to Shopping List to generate your grocery list.');
+}
+
+// Export meal plan function
+async function exportMealPlan() {
+    try {
+        const response = await fetch('{{ url_for("export_meal_plan") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Export failed');
+        }
+        
+        // Get the blob from response
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'meal-plan-{{ meal_plan.start_date }}.html';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        alert('✅ Meal plan exported successfully!');
+    } catch (error) {
+        console.error('Error exporting meal plan:', error);
+        alert('❌ Failed to export meal plan');
+    }
 }
 </script>
 {% endblock %}

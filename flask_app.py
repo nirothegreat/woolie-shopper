@@ -203,88 +203,22 @@ def add_recipe():
                 flash('Could not parse recipe from URL. Please try manual entry.', 'error')
         else:
             # Manual entry
-            # Parse ingredients from textarea
+            # Parse ingredients from textarea using the unified measurement parser
             ingredients_text = request.form.get('ingredients', '')
             ingredients = []
             
             if ingredients_text:
-                import re
-                
-                # Common measurement units
-                UNITS = {
-                    'cup', 'cups', 'tbsp', 'tablespoon', 'tablespoons', 'tsp', 'teaspoon', 'teaspoons',
-                    'g', 'gram', 'grams', 'kg', 'kilogram', 'kilograms',
-                    'ml', 'milliliter', 'milliliters', 'l', 'liter', 'liters',
-                    'oz', 'ounce', 'ounces', 'lb', 'lbs', 'pound', 'pounds',
-                    'piece', 'pieces', 'slice', 'slices', 'clove', 'cloves',
-                    'whole', 'small', 'medium', 'large', 'can', 'cans', 'packet', 'packets',
-                    'bunch', 'pinch', 'dash', 'handful', 'sprig', 'sprigs',
-                    'rasher', 'rashers', 'fillet', 'fillets', 'breast', 'breasts'
-                }
+                from measurement_parser import MeasurementParser
+                parser = MeasurementParser()
                 
                 for line in ingredients_text.strip().split('\n'):
-                    original_line = line
                     line = line.strip()
                     if not line:
                         continue
                     
-                    # Skip section headers (no quantity/numbers)
-                    if not re.search(r'\d|½|⅓|¼|⅔|¾', line):
-                        continue
-                    
-                    quantity = ''
-                    unit = ''
-                    name = ''
-                    notes = ''
-                    
-                    # Extract notes in parentheses
-                    paren_match = re.search(r'\(([^)]+)\)', line)
-                    if paren_match:
-                        notes = paren_match.group(1).strip()
-                        line = line[:paren_match.start()].strip() + ' ' + line[paren_match.end():].strip()
-                        line = line.strip()
-                    
-                    # Extract comma-separated notes
-                    if ',' in line:
-                        line_parts = line.split(',', 1)
-                        line = line_parts[0].strip()
-                        comma_notes = line_parts[1].strip()
-                        notes = (notes + ', ' + comma_notes) if notes else comma_notes
-                    
-                    # Remove "OPTIONAL:" prefix
-                    line = re.sub(r'^OPTIONAL:\s*', '', line, flags=re.IGNORECASE)
-                    
-                    # Parse: quantity + optional unit + name
-                    # Match patterns like: "1", "1/2", "1-2", "150g", etc.
-                    qty_match = re.match(r'^([\d./½⅓¼⅔¾-]+)\s*([a-zA-Z]+)?\s*(.*)$', line)
-                    
-                    if qty_match:
-                        quantity = qty_match.group(1).strip()
-                        potential_unit = qty_match.group(2).strip().lower() if qty_match.group(2) else ''
-                        rest = qty_match.group(3).strip() if qty_match.group(3) else ''
-                        
-                        # Check if potential_unit is actually a unit or part of the name
-                        if potential_unit in UNITS:
-                            unit = potential_unit
-                            name = rest
-                        else:
-                            # Not a recognized unit, it's part of the name
-                            unit = ''
-                            name = (potential_unit + ' ' + rest).strip() if potential_unit else rest
-                    else:
-                        # No quantity found, use whole line as name
-                        name = line
-                    
-                    # Fallback
-                    if not name and not quantity:
-                        name = original_line.strip()
-                    
-                    ingredients.append({
-                        'quantity': quantity,
-                        'unit': unit,
-                        'name': name,
-                        'notes': notes
-                    })
+                    # Use measurement parser for consistent parsing
+                    parsed = parser.parse_ingredient(line)
+                    ingredients.append(parsed)
             
             recipe_data = {
                 'name': request.form.get('name'),
@@ -510,6 +444,222 @@ def save_meal_plan():
             return jsonify({'success': False, 'error': 'Failed to save meal plan'}), 500
     except Exception as e:
         print(f"Error saving meal plan: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/meal-plan/export', methods=['POST'])
+def export_meal_plan():
+    """Export the current meal plan as HTML with recipe links"""
+    from flask import make_response
+    
+    meal_plan = session.get('meal_plan', {})
+    if not meal_plan.get('meals'):
+        return jsonify({'success': False, 'error': 'No meal plan to export'}), 400
+    
+    try:
+        # Get all recipes to build recipe URL mapping
+        all_recipes = recipe_db.get_all_recipes()
+        recipe_lookup = {r['name']: r for r in all_recipes}
+        
+        # Build HTML export
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meal Plan - Week of {meal_plan.get('start_date', '')}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8f9fa;
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 0.5rem;
+        }}
+        .info {{
+            background: #e3f2fd;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }}
+        .day-section {{
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .day-header {{
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 0.5rem;
+        }}
+        .date {{
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }}
+        .reasoning {{
+            background: #f0f9ff;
+            border-left: 4px solid #2c7a4d;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            font-style: italic;
+            color: #2c7a4d;
+        }}
+        .meal-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }}
+        .meal-card {{
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }}
+        .meal-type {{
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }}
+        .recipe-name {{
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }}
+        .recipe-link {{
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }}
+        .recipe-link:hover {{
+            text-decoration: underline;
+        }}
+        .no-meal {{
+            color: #6c757d;
+            font-style: italic;
+        }}
+        .strategy {{
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }}
+        @media print {{
+            body {{
+                background: white;
+            }}
+            .day-section {{
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <h1>📅 Meal Plan</h1>
+    <div class="info">
+        <strong>Week:</strong> {meal_plan.get('start_date', '')} to {meal_plan.get('end_date', '')}<br>
+        <strong>Exported:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M')}
+    </div>
+"""
+        
+        # Add AI strategy if present
+        if meal_plan.get('ai_strategy'):
+            html += f"""
+    <div class="strategy">
+        <strong>🧠 AI Strategy:</strong> {meal_plan.get('ai_strategy', '')}
+    </div>
+"""
+        
+        # Add meal days
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        sorted_dates = sorted(meal_plan.get('meals', {}).keys())
+        
+        for i, day in enumerate(days):
+            if i < len(sorted_dates):
+                date = sorted_dates[i]
+                day_meals = meal_plan['meals'].get(date, {})
+                reasoning = day_meals.get('reasoning', '')
+                
+                html += f"""
+    <div class="day-section">
+        <div class="day-header">{day}</div>
+        <div class="date">{date}</div>
+"""
+                
+                if reasoning:
+                    html += f"""
+        <div class="reasoning">💡 {reasoning}</div>
+"""
+                
+                html += """
+        <div class="meal-grid">
+"""
+                
+                # Define meal types with emojis
+                meal_types = [
+                    ('breakfast', '🌅 Breakfast'),
+                    ('breakfast_maya', '👧 Maya Breakfast'),
+                    ('breakfast_ehren', '👦 Ehren Breakfast'),
+                    ('lunch', '🥪 Lunch'),
+                    ('lunch_ehren', '🎒 Ehren School Lunch'),
+                    ('dinner', '🍽️ Dinner'),
+                ]
+                
+                for meal_key, meal_label in meal_types:
+                    recipe_name = day_meals.get(meal_key)
+                    if recipe_name:
+                        recipe = recipe_lookup.get(recipe_name)
+                        recipe_url = recipe.get('source_url') if recipe and recipe.get('source_url') else None
+                        
+                        html += f"""
+            <div class="meal-card">
+                <div class="meal-type">{meal_label}</div>
+                <div class="recipe-name">
+"""
+                        
+                        if recipe_url:
+                            html += f"""                    <a href="{recipe_url}" class="recipe-link" target="_blank">{recipe_name}</a>
+"""
+                        else:
+                            html += f"""                    <span>{recipe_name}</span>
+"""
+                        
+                        html += """                </div>
+            </div>
+"""
+                
+                html += """
+        </div>
+    </div>
+"""
+        
+        html += """
+</body>
+</html>
+"""
+        
+        # Create response
+        response = make_response(html)
+        response.headers['Content-Type'] = 'text/html'
+        response.headers['Content-Disposition'] = f'attachment; filename=meal-plan-{meal_plan.get("start_date", "export")}.html'
+        
+        return response
+        
+    except Exception as e:
+        print(f"Error exporting meal plan: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/meal-plan/list')
@@ -1295,4 +1445,6 @@ def search_product():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # For local development only - production uses gunicorn
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=os.environ.get('FLASK_DEBUG', 'False').lower() == 'true')
