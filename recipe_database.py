@@ -286,7 +286,14 @@ class RecipeDatabase:
         cursor.execute("""
             SELECT * FROM recipe_ingredients WHERE recipe_id = ?
         """, (recipe_id,))
-        recipe_dict['ingredients'] = [dict(row) for row in cursor.fetchall()]
+        ingredients = [dict(row) for row in cursor.fetchall()]
+        
+        # Map ingredient_name to name for consistency with other parts of the codebase
+        for ing in ingredients:
+            if 'ingredient_name' in ing and 'name' not in ing:
+                ing['name'] = ing['ingredient_name']
+        
+        recipe_dict['ingredients'] = ingredients
         
         # Get tags
         cursor.execute("""
