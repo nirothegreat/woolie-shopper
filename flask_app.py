@@ -892,6 +892,28 @@ def ai_generate_meal_plan():
 @app.route('/shopping-list')
 def shopping_list():
     """Generate and display shopping list"""
+    # Check if we should use existing list from session (unless force_refresh is requested)
+    force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+    servings_multiplier = float(request.args.get('multiplier', 1.0))
+    
+    # If shopping list already exists in session and not forcing refresh, use it
+    if not force_refresh and 'shopping_list_categories' in session:
+        print("✅ Using existing shopping list from session (modified by chat or previous generation)")
+        categories = session.get('shopping_list_categories', {})
+        staples = session.get('staples', get_default_staples())
+        
+        return render_template('shopping_list.html',
+                             categories=categories,
+                             staples=staples,
+                             servings_multiplier=servings_multiplier,
+                             ai_optimized=True,
+                             shopping_tips=session.get('shopping_tips', []),
+                             cost_saving=session.get('cost_saving', []),
+                             from_session=True)
+    
+    # Generate fresh shopping list from meal plan
+    print("🔄 Generating fresh shopping list from meal plan")
+    
     # Get meal plan from session
     meal_plan = session.get('meal_plan', {})
     
@@ -926,7 +948,6 @@ def shopping_list():
             selected_recipe_ids.append(r['id'])
     
     # Generate shopping list
-    servings_multiplier = float(request.args.get('multiplier', 1.0))
     shopping_list_items = recipe_db.generate_shopping_list(selected_recipe_ids, servings_multiplier)
     
     # Get staples from session
@@ -970,8 +991,10 @@ def shopping_list():
             shopping_tips = ai_result.get('shopping_tips', [])
             cost_saving = ai_result.get('cost_saving_suggestions', [])
             
-            # Store categories in session for chat agent
+            # Store in session for chat agent and to preserve across page reloads
             session['shopping_list_categories'] = categories
+            session['shopping_tips'] = shopping_tips
+            session['cost_saving'] = cost_saving
             session.modified = True
             
             return render_template('shopping_list.html', 

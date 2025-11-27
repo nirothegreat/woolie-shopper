@@ -13,13 +13,15 @@
         {% endif %}
     </div>
     <div class="flex gap-1">
+        {% if from_session %}
+        <span class="badge" style="background: #0d6efd; color: white; padding: 0.5rem 1rem;">💾 From Session</span>
+        {% endif %}
         {% if ai_optimized %}
         <span class="badge" style="background: #2c7a4d; color: white; padding: 0.5rem 1rem;">🤖 Auto-Optimized</span>
-        <a href="{{ url_for('shopping_list', ai='false') }}" class="btn btn-secondary">Standard View</a>
-        {% else %}
-        <span class="badge" style="background: #6c757d; color: white; padding: 0.5rem 1rem;">📋 Standard View</span>
-        <a href="{{ url_for('shopping_list') }}" class="btn">🤖 AI Optimize</a>
         {% endif %}
+        <a href="{{ url_for('shopping_list', force_refresh='true') }}" class="btn btn-warning" onclick="return confirm('This will regenerate the list from your meal plan and lose any chat modifications. Continue?')">
+            🔄 Refresh from Meal Plan
+        </a>
         <a href="{{ url_for('meal_plan') }}" class="btn btn-secondary">← Back to Meal Plan</a>
     </div>
 </div>
